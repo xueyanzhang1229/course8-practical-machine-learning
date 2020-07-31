@@ -1,0 +1,87 @@
+---
+title: "Course 8 project"
+author: "xueyan zhang"
+date: "7/29/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#### Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+#### Data loading
+```{r,warning=FALSE,message=FALSE}
+urltraining <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+training <- read.csv(urltraining,header = TRUE,na.strings=c("NA","#DIV/0!",""))
+urltesting <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+testing <- read.csv(urltesting,header = TRUE,na.strings=c("NA","#DIV/0!",""))
+library(caret)
+library(rattle)
+library(randomForest)
+set.seed(112233)
+#install.packages('e1071', dependencies=TRUE)
+```
+
+#### Data cleaning
+```{r}
+# delete first 7 columns which are identifier
+training <- training[,-c(1:7)]
+testing <- testing[,-c(1:7)]
+# delete variables with too many NA (70%)
+training1 <- training 
+for(i in 1:length(training)) { 
+        if( sum( is.na( training[, i] ) ) /nrow(training) >= .7 ) { 
+        for(j in 1:length(training1)) {
+            if( length( grep(names(training[i]), names(training1)[j]) ) ==1)  { 
+                training1 <- training1[ , -j] 
+            }   
+        } 
+    }
+}
+training <- training1
+testing1 <- testing 
+for(i in 1:length(testing)) { 
+        if( sum( is.na( testing[, i] ) ) /nrow(testing) >= .7 ) { 
+        for(j in 1:length(testing1)) {
+            if( length( grep(names(testing[i]), names(testing1)[j]) ) ==1)  { 
+                testing1 <- testing1[ , -j] 
+            }   
+        } 
+    }
+}
+testing <- testing1
+```
+
+#### Generate new training and testing set with training data
+```{r}
+intrain <- createDataPartition(y=training$classe,p=0.75,list=FALSE)   
+newtraining <- training[intrain,]
+newtesting <- training[-intrain,]
+```
+
+#### Predict with trees
+```{r}
+fit1 <- train(classe~.,method="rpart",data=newtraining)
+print(fit1$finalModel)
+pred1 <- predict(fit1,newdata=newtesting)
+newtesting$classe <- as.factor(newtesting$classe)
+confusionMatrix(pred1,newtesting$classe)
+fancyRpartPlot(fit1$finalModel)
+```
+
+#### Predict with random forests
+```{r}
+fit2 <- randomForest(as.factor(classe)~.,data=newtraining)
+pred2 <- predict(fit2,newdata=newtesting)
+confusionMatrix(pred2,newtesting$classe)
+```
+
+The accuracy of tree is 0.4965 [0.4824, 0.5106].The accuracy of random forest is 0.9949 [0.9925, 0.9967]. So random forest model is used for predict with testing data.The expected out-of-sample error is estimated at 0.005.
+
+#### Predict with original testing data
+```{r}
+predict(fit2,newdata=testing)
